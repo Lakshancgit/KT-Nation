@@ -1,38 +1,58 @@
 const functions = require("firebase-functions");
 
 const app = require("express")();
+const cors = require("cors");
 
-const FBAuth = require('./util/fbAuth');
+const FBAuth = require("./util/fbAuth");
 
-const { getAllPosts , postOnePost , getPost , 
-    commentOnPost , likeOnPost , unlikeOnPost , deletePost} = require('./handlers/posts');
-const { signup , login , addUserDetails , getAuthenticatedUser , markNotificationsRead , getUserDetails} = require('./handlers/users');
+const {
+  getAllPosts,
+  postOnePost,
+  getPost,
+  commentOnPost,
+  likeOnPost,
+  unlikeOnPost,
+  deletePost,
+} = require("./handlers/posts");
+const {
+  signup,
+  login,
+  addUserDetails,
+  getAuthenticatedUser,
+  markNotificationsRead,
+  getUserDetails,
+} = require("./handlers/users");
 const { db } = require("./util/admin");
 
+app.use(
+  cors({
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST", "PUT", "DELETE"],
+  })
+);
 
 //Posts routes
-app.get('/posts', getAllPosts); 
-app.post('/post', FBAuth, postOnePost);
-app.get('/post/:postId', getPost);
-app.post('/post/:postId/comment', FBAuth, commentOnPost);
-app.get('/post/:postId/like', FBAuth, likeOnPost);
-app.get('/post/:postId/unlike', FBAuth, unlikeOnPost);
-app.delete('/post/:postId', FBAuth , deletePost);
-
+app.get("/posts", getAllPosts);
+app.post("/post", FBAuth, postOnePost);
+app.get("/post/:postId", getPost);
+app.post("/post/:postId/comment", FBAuth, commentOnPost);
+app.get("/post/:postId/like", FBAuth, likeOnPost);
+app.get("/post/:postId/unlike", FBAuth, unlikeOnPost);
+app.delete("/post/:postId", FBAuth, deletePost);
 
 //Users routes
-app.post('/signup', signup);
-app.post('/login', login);
-app.post('/user', FBAuth, addUserDetails);
-app.get('/user', FBAuth , getAuthenticatedUser);
-app.get('/user/:handle' , getUserDetails);
-app.post('/notifications' , FBAuth , markNotificationsRead);
+app.post("/signup", signup);
+app.post("/login", login);
+app.post("/user", FBAuth, addUserDetails);
+app.get("/user", FBAuth, getAuthenticatedUser);
+app.get("/user/:handle", getUserDetails);
+app.post("/notifications", FBAuth, markNotificationsRead);
 //app.post('/user/image', FBAuth, uploadImage);
 
 exports.api = functions.https.onRequest(app);
 
-exports.createNotificationOnLike = functions
-.firestore.document('likes/{Id}')
+exports.createNotificationOnLike = functions.firestore
+  .document("likes/{Id}")
   .onCreate((snapshot) => {
     return db
       .doc(`/posts/${snapshot.data().postId}`)
@@ -46,28 +66,31 @@ exports.createNotificationOnLike = functions
             createdAt: new Date().toISOString(),
             recipient: doc.data().userHandle,
             sender: snapshot.data().userHandle,
-            type: 'like',
+            type: "like",
             read: false,
-            postId: doc.id
+            postId: doc.id,
           });
         }
       })
       .catch((err) => console.error(err));
   });
 
-exports.deleteNotificationOnUnLike = functions.firestore.document('likes/{id}')
-.onDelete((snapshot) => {
+exports.deleteNotificationOnUnLike = functions.firestore
+  .document("likes/{id}")
+  .onDelete((snapshot) => {
     db.doc(`notifications/${snapshot.id}`)
-    .delete().then(() => {
+      .delete()
+      .then(() => {
         return;
-    }).catch(err => {
+      })
+      .catch((err) => {
         console.log(err);
         return;
-    });
-});
+      });
+  });
 
-exports.createNotificationOnComment = functions
-  .firestore.document('comments/{id}')
+exports.createNotificationOnComment = functions.firestore
+  .document("comments/{id}")
   .onCreate((snapshot) => {
     return db
       .doc(`/posts/${snapshot.data().postId}`)
@@ -81,9 +104,9 @@ exports.createNotificationOnComment = functions
             createdAt: new Date().toISOString(),
             recipient: doc.data().userHandle,
             sender: snapshot.data().userHandle,
-            type: 'comment',
+            type: "comment",
             read: false,
-            postId: doc.id
+            postId: doc.id,
           });
         }
       })
@@ -93,32 +116,29 @@ exports.createNotificationOnComment = functions
       });
   });
 
-  exports.onPostDelete = functions
-  .region('europe-west1')
-  .firestore.document('/posts/{postId}')
+exports.onPostDelete = functions
+  .region("europe-west1")
+  .firestore.document("/posts/{postId}")
   .onDelete((snapshot, context) => {
     const postId = context.params.postId;
     const batch = db.batch();
     return db
-      .collection('comments')
-      .where('postId', '==', postId)
+      .collection("comments")
+      .where("postId", "==", postId)
       .get()
       .then((data) => {
         data.forEach((doc) => {
           batch.delete(db.doc(`/comments/${doc.id}`));
         });
-        return db
-          .collection('likes')
-          .where('postId', '==', postId)
-          .get();
+        return db.collection("likes").where("postId", "==", postId).get();
       })
       .then((data) => {
         data.forEach((doc) => {
           batch.delete(db.doc(`/likes/${doc.id}`));
         });
         return db
-          .collection('notifications')
-          .where('postId', '==', postId)
+          .collection("notifications")
+          .where("postId", "==", postId)
           .get();
       })
       .then((data) => {
