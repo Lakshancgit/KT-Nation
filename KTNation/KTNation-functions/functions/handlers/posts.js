@@ -30,6 +30,7 @@ exports.postOnePost = (req, res) => {
   const newPost = {
     body: req.body.body,
     userHandle: req.user.handle,
+    title: req.body.title,
     userImage: req.user.imageUrl,
     createdAt: new Date().toISOString(),
     likeCount: 0,
